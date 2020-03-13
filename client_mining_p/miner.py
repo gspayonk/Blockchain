@@ -1,8 +1,12 @@
 import hashlib
 import requests
 
+import time
+
 import sys
 import json
+
+balance = 0
 
 
 def proof_of_work(block):
@@ -13,7 +17,14 @@ def proof_of_work(block):
     in an effort to find a number that is a valid proof
     :return: A valid proof for the provided block
     """
-    pass
+    block_string = json.dumps(block, sort_keys=True)
+
+    proof = 0
+
+    while valid_proof(block_string, proof) is False:
+        proof += 1
+
+    return proof
 
 
 def valid_proof(block_string, proof):
@@ -27,7 +38,11 @@ def valid_proof(block_string, proof):
     correct number of leading zeroes.
     :return: True if the resulting hash is a valid proof, False otherwise
     """
-    pass
+
+    guess = f'{block_string}{proof}'.encode()
+    guess_hash = hashlib.sha256(guess).hexdigest()
+
+    return guess_hash[:6] == "000000"
 
 
 if __name__ == '__main__':
@@ -45,7 +60,8 @@ if __name__ == '__main__':
 
     # Run forever until interrupted
     while True:
-        r = requests.get(url=node + "/last_block")
+        print('Started getting block')
+        r = requests.get(url=node + "/last")
         # Handle non-json response
         try:
             data = r.json()
@@ -55,16 +71,34 @@ if __name__ == '__main__':
             print(r)
             break
 
-        # TODO: Get the block from `data` and use it to look for a new proof
-        # new_proof = ???
+        # Get the block from `data` and use it to look for a new proof
+        block = data['last_block']
+        print('Success...')
+        print('Starting proof...')
+        start_time = time.time()
+        new_proof = proof_of_work(block)
+        end_time = time.time()
 
         # When found, POST it to the server {"proof": new_proof, "id": id}
+        print(
+            f'Success, Proof acquired in {end_time - start_time} seconds, Posting to server.')
         post_data = {"proof": new_proof, "id": id}
 
         r = requests.post(url=node + "/mine", json=post_data)
-        data = r.json()
+        # data = r.json()
 
-        # TODO: If the server responds with a 'message' 'New Block Forged'
+        #  If the server responds with a 'message' 'New Block Forged'
         # add 1 to the number of coins mined and print it.  Otherwise,
         # print the message from the server.
-        pass
+
+        try:
+            data = r.json()
+        except ValueError:
+            print("ERROR: Must be JSON format.")
+            print(f"Got: {r}")
+            break
+
+        if data['Message'] == 'New Block Forged':
+            balance += 1
+            print(f'Success! You\'ve mined 1 coin. Balance: {balance}')
+            print(data)
